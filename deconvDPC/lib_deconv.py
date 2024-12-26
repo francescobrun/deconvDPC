@@ -524,3 +524,24 @@ def tv_deconvolution(y, h, a, iter=400):
     out[1:, 1:] = x[:-1, :-1]
     
     return out
+
+
+def wiener_deconvolution_fb(image, psf, noise_var):
+    
+    # Fourier transform of the input image and the point spread function (PSF)
+    F = np.fft.fft2(image)
+    H = np.fft.fft2(psf, s=image.shape)
+
+    # Wiener deconvolution
+    denom = np.abs(H) ** 2 + noise_var
+    G = np.conj(H) / np.maximum(denom, np.finfo(np.float64).eps) # avoid division by zero     
+    X = G * F
+
+    # Inverse Fourier transform to get the restored image
+    x = np.fft.ifft2(X).real
+    
+    # Correct one pixel shift:
+    x = np.concatenate(( x[:, :1], x[:, :-1]), axis=1)
+    x = np.concatenate(( x[:1, :], x[:-1, :]), axis=0)
+
+    return x

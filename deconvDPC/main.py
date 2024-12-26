@@ -72,25 +72,22 @@ for k in range(hilbert_dset.shape[2]):
 
 # SPARSE deconvolution
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\sparse_deconvolution\\"
+path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\sparse_deconvolution_0.07\\"
 dset_s=np.zeros((projections2.shape))
 
 for i in range (projections2.shape[2]):
-    dset_s[:,:,i]=lib_deconv.deconvSps(projections2[:,:,i], psf, 0.1, 400)
-    dset_s[:,:,i]=(dset_s[:,:,i]-np.min(dset_s[:,:,i]))/(np.max(dset_s[:,:,i])/np.min(dset_s[:,:,i]))
+    dset_s[:,:,i]=lib_deconv.deconvSps(projections2[:,:,i], psf, 0.07, 400)
+    #dset_s[:,:,i]=(dset_s[:,:,i]-np.min(dset_s[:,:,i]))/(np.max(dset_s[:,:,i])/np.min(dset_s[:,:,i]))
     tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", dset_s[:,:,i].astype(np.float32))    
+
 
 
 # TV deconvolution
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\tv_deconvolution\\"
-path_output2="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\tv_deconvolution_medfilt2d\\"
+path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\tv_deconvolution_0.7\\"
 dset_tv=np.zeros((projections2.shape))
 
 for i in range (projections2.shape[2]):
-    dset_tv[:,:,i]=lib_deconv.tv_deconvolution(projections2[:,:,i], psf, np.sqrt(0.1), 400)
-    dset_tv[:,:,i]=(dset_tv[:,:,i]-np.min(dset_tv[:,:,i]))/(np.max(dset_tv[:,:,i])/np.min(dset_tv[:,:,i]))
-    tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", dset_tv[:,:,i].astype(np.float32))  
-    dset_tv[:,:,i]=medfilt2d(dset_tv[:,:,i], 5)
-    dset_tv[:,:,i]=medfilt2d(dset_tv[:,:,i], 5)
-    tifffile.imwrite(path_output2 + "slice_"+ str(i).zfill(4) + ".tif", dset_tv[:,:,i].astype(np.float32))  
+    dset_tv[:,:,i]=lib_deconv.tv_deconvolution(projections2[:,:,i], psf, 0.7, 600)
+    #dset_tv[:,:,i]=(dset_tv[:,:,i]-np.min(dset_tv[:,:,i]))/(np.max(dset_tv[:,:,i])/np.min(dset_tv[:,:,i]))
+    tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", dset_tv[:,:,i].astype(np.float32))    
