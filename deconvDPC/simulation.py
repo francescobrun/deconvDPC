@@ -44,19 +44,19 @@ for i in range(dset.shape[2]):
 
 # mask
 center_x, center_y = dset_d.shape[0]// 2, dset_d.shape[1]// 2  
-raggio = dset_d.shape[0]// 2 
+radius = dset_d.shape[0]// 2 
 y, x = np.ogrid[:dset_d.shape[0], :dset_d.shape[1]]
 distance_from_center = np.sqrt((x - center_x)**2 + (y - center_y)**2)
-mask = distance_from_center >= raggio
+mask = distance_from_center >= radius
 
 
 # HILBERT reconstruction 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\hilbert_simul\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\hilbert_simul_recon\\"
 rec = np.zeros( (dset.shape[0],dset.shape[1],dset.shape[1]) )
 for i in range(dset.shape[0]):      
     sino_i = np.imag(hilbert(dset_d[i,:,:], axis=0)) 
     rec_i  = iradon(sino_i, theta=theta, filter_name=None)
-    rec_i = 10*(rec_i-np.min(rec_i))/(np.max(rec_i)-np.min(rec_i))
+    rec_i = 10*(rec_i-0.007)/(10-0.007)
     rec_i[mask] = 0
     rec[i,:,:] = rec_i   
     tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", rec[i,:,:].astype(np.float32)) 
@@ -64,7 +64,7 @@ for i in range(dset.shape[0]):
     
 ## TV deconvolution
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\tv_simul_recon_norm\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\tv_simul_recon\\"
 dset_tv=np.zeros((dset_d.shape))
 
 for i in range(dset_d.shape[2]):
@@ -83,7 +83,7 @@ for i in range(dset_tv.shape[0]):
 
 # SPARSE deconvolution
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\sparse_simul_recon\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\sparse_simul_recon\\"
 dset_sparse=np.zeros((dset_d.shape))
 
 for i in range(dset_d.shape[2]):
@@ -97,13 +97,13 @@ for i in range(dset_sparse.shape[0]):
     rec_i = 10*(rec_i-0.007)/(10-0.007)
     rec_i[mask] = 0
     rec[i,:,:] = rec_i
-    tifffile.imwrite(path_output + "param_0.04\\slice_"+ str(i).zfill(4) + ".tif", rec[i,:,:].astype(np.float32))   
+    tifffile.imwrite(path_output + "param_0.07\\slice_"+ str(i).zfill(4) + ".tif", rec[i,:,:].astype(np.float32))   
 
 
 # WIENER deconvolution
 
 dset_wiener=np.zeros((dset_d.shape))
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\wiener_simul_recon\\param_0.001\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\wiener_simul_recon\\"
 
 for i in range(dset_d.shape[2]):
     image=dset_d[:,:,i]   

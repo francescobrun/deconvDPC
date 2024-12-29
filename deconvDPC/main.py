@@ -15,7 +15,7 @@ crop_top= 9
 crop_bottom = 140
 
 path_input= "D:\\FromPEPItoGiada\\wire_flour_coffee_salt\\"
-path_projection2= "C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\projections\\"
+path_projection2= "D:\\FromPEPItoGiada\\deconvDPC\\projections\\"
 image1=tifffile.imread("D:\\FromPEPItoGiada\\wire_flour_coffee_salt\\REF_corr_0001.tif")
 image1 = image1[crop_top:image1.shape[0]-crop_bottom+1,crop_left:image1.shape[1]-crop_right+1]
 
@@ -48,7 +48,7 @@ psf[1,2]=-1
 
 # WIENER deconvolution
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\wiener_deconvolution\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\wiener_deconvolution\\"
 wiener_dset=lib_deconv._wiener_deconvolution(projections2)
 
 for i in range(wiener_dset.shape[2]):
@@ -57,7 +57,7 @@ for i in range(wiener_dset.shape[2]):
 
 # HILBERT
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\hilbert_projections\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\hilbert_projections\\"
 hilbert_dset = np.zeros( (projections2.shape[0],projections2.shape[1],projections2.shape[2]) )
 
 for k in range(projections2.shape[0]): 
@@ -72,7 +72,7 @@ for k in range(hilbert_dset.shape[2]):
 
 # SPARSE deconvolution
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\sparse_deconvolution_0.07\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\sparse_deconvolution_0.07\\"
 dset_s=np.zeros((projections2.shape))
 
 for i in range (projections2.shape[2]):
@@ -84,7 +84,7 @@ for i in range (projections2.shape[2]):
 
 # TV deconvolution
 
-path_output="C:\\Users\\giarizzo.WIN\\Documents\\phaseIntegration_deconv\\tv_deconvolution_0.7\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\tv_deconvolution_0.7\\"
 dset_tv=np.zeros((projections2.shape))
 
 for i in range (projections2.shape[2]):
