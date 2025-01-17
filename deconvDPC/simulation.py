@@ -79,15 +79,15 @@ for i in range(dset.shape[0]):
     rec_i[mask] = 0
     tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", rec_i.astype(np.float32)) 
 
-    
+   
 ## TV deconvolution
 
-path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\tv_simul\\param_0.09\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\tv_simul\\param_0.025\\"
 dset_tv=np.zeros((dset_d.shape))
 
 for i in range(dset_d.shape[2]):
     image=dset_d[:,:,i]   
-    Dw_tv = lib_deconv.tv_deconvolution(image, psf, 0.09, 400) 
+    Dw_tv = lib_deconv.tv_deconvolution(image, psf, 0.025, 400) 
     dset_tv[:,:,i]=Dw_tv
     
 rec=np.zeros( (dset_tv.shape[0],dset_tv.shape[1],dset_tv.shape[1]) )
@@ -107,14 +107,14 @@ for i in range(rec.shape[0]):
 
 # SPARSE deconvolution
 
-path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\sparse_simul\\param_0.22\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\sparse_simul\\param_0.2\\"
 dset_sparse=np.zeros((dset_d.shape))
 
 for i in range(dset_d.shape[2]):
     image=dset_d[:,:,i]   
-    Dw_sparse = lib_deconv.deconvSps(image, psf, 0.22, 400) 
+    Dw_sparse = lib_deconv.deconvSps(image, psf, 0.2, 400) 
     dset_sparse[:,:,i]=Dw_sparse
-    
+ 
 rec=np.zeros( (dset_sparse.shape[0],dset_sparse.shape[1],dset_sparse.shape[1]) )
 for i in range(dset_sparse.shape[0]):    
     rec_i  = iradon(dset_sparse[i,:,:], theta=theta, filter_name='ramp')
@@ -133,11 +133,11 @@ for i in range(rec.shape[0]):
 # WIENER deconvolution
 
 dset_wiener=np.zeros((dset_d.shape))
-path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\wiener_simul\\param_0.00001\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\wiener_simul\\param_0.0001\\"
 
 for i in range(dset_d.shape[2]):
     image=dset_d[:,:,i]   
-    Dw_wiener = lib_deconv.wiener_deconvolution_fb(image, psf, 0.00001) 
+    Dw_wiener = lib_deconv.wiener_deconvolution_fb(image, psf, 0.0001) 
     dset_wiener[:,:,i]=Dw_wiener
     
 rec=np.zeros( (dset_wiener.shape[0],dset_wiener.shape[1],dset_wiener.shape[1]) )
