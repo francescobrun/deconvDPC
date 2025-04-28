@@ -4,6 +4,15 @@ from numpy.fft import fftshift, ifftshift, fft2,ifft2
 from scipy.signal import convolve2d
 from scipy.ndimage import convolve
 
+def percentile_normalization(source, reference, p_low=1, p_high=99):
+    src_low, src_high = np.percentile(source, [p_low, p_high])
+    ref_low, ref_high = np.percentile(reference, [p_low, p_high])
+   
+    # Normalize source to match reference contrast range
+    source_norm = (source - src_low) / (src_high - src_low)
+    source_scaled = source_norm * (ref_high - ref_low) + ref_low
+   
+    return source_scaled
 
 def _regularization (image):
     

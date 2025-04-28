@@ -6,6 +6,8 @@ from skimage.transform import resize, radon, iradon
 from scipy.signal import hilbert
 import tifffile
 from _sl3d import shepp_logan_3d
+from scipy.ndimage import zoom
+import os
 
 
 ## Get phantom matrix:
@@ -62,94 +64,121 @@ mask = distance_from_center >= radius
 
 
 # HILBERT reconstruction 
-path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\hilbert_simul\\"
+path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\hilbert\\hilbert_simul\\"
+if not os.path.exists(path_output):
+    os.makedirs(path_output)
 rec = np.zeros( (dset.shape[0],dset.shape[1],dset.shape[1]) )
+
 for i in range(dset.shape[0]):      
-    sino_i = np.imag(hilbert(dset_d[i,:,:], axis=0)) 
-    rec_i  = iradon(sino_i, theta=theta, filter_name=None)
+    im = np.pad(dset_d[i,:,:], ((dset_d.shape[1] // 2, dset_d.shape[1] // 2), (0, 0)), mode='edge')
+    sino_i = np.imag(hilbert(im, axis=0)) 
+    sino_i = zoom(sino_i, (2,1), order=1) 
+    sino_i = np.roll(sino_i, -1, axis=0)  
+    sino_i=np.pad(sino_i, ((0, 0), (dset.shape[1]/2,dset.shape[1]/2 )), mode='edge')
+    rec_i = iradon(sino_i, theta=theta, filter_name=None) / 2.0 
+    rec_i = zoom(rec_i, (0.5,0.5), order=1) 
+    rec_i = rec_i[128:384, 128:384]
+    rec_i[mask] = 0                       
     rec[i,:,:] = rec_i   
+    tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", rec[i,:,:].astype(np.float32)) 
 
-rec_complete=rec[127,:,:]
-minimum= np.mean(rec_complete[111:121,89:105])
-maximum= np.mean(rec_complete[237:244,118:138])
 
+# Forward after HILBERT
+path_output= "D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\hilbert\\forward_after_hilbert\\"
+if not os.path.exists(path_output):
+    os.makedirs(path_output)
+
+projs = np.zeros( (dset.shape[0],dset.shape[1],n_proj), dtype=np.float32 )
 for i in range(dset.shape[0]):
-    rec[i,:,:] = (rec[i,:,:]-minimum)/(maximum-minimum)
-    rec_i=rec[i,:,:]
-    rec_i[mask] = 0
-    tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", rec_i.astype(np.float32)) 
+    rec_i = rec[i,:,:]
+    sino_i  = radon(rec_i, theta=theta)  # Forward projection
+    sino_i[ sino_i < 0 ] = 0 # non-negativity
+    projs[i,:,:] = sino_i
+    
+for i in range(projs.shape[2]):      
+    tifffile.imwrite(path_output+"proj_"+ str(i).zfill(4) + ".tif", projs[:,:,i].astype(np.float32)) 
 
-   
+
 ## TV deconvolution
 
-path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\tv_simul\\param_0.025\\"
-dset_tv=np.zeros((dset_d.shape))
+dset_tv_norm = np.zeros((dset_d.shape), dtype=np.float32)
+dset_tv_no_norm = np.zeros((dset_d.shape), dtype=np.float32)
+
+path_output_norm="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation_calibrated\\new_image\\300_proj\\sigma_1\\TV\\deconv_normalized\\"
+if not os.path.exists(path_output_norm):
+    os.makedirs(path_output_norm)
 
 for i in range(dset_d.shape[2]):
-    image=dset_d[:,:,i]   
-    Dw_tv = lib_deconv.tv_deconvolution(image, psf, 0.025, 400) 
-    dset_tv[:,:,i]=Dw_tv
-    
-rec=np.zeros( (dset_tv.shape[0],dset_tv.shape[1],dset_tv.shape[1]) )
-for i in range(dset_tv.shape[0]):    
-    rec_i  = iradon(dset_tv[i,:,:], theta=theta, filter_name='ramp')
-    rec[i,:,:] = rec_i
- 
-rec_i=rec[127,:,:]
-minimum= np.mean(rec_i[111:121,89:105])
-maximum= np.mean(rec_i[237:244,118:138])
+    dset_tv_no_norm[:,:,i] = lib_deconv.tv_deconvolution(dset_d[:,:,i], psf, 0.025, 400) 
 
-for i in range(rec.shape[0]):
-    rec[i,:,:]= (rec[i,:,:]-minimum)/(maximum-minimum)
-    rec[i,:,:][mask] = 0
-    tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", rec[i,:,:].astype(np.float32)) 
+    # Normalize according to the corresponding projection after hilbert:
+    dset_tv_norm[:,:,i] = lib_deconv.percentile_normalization(dset_tv_no_norm[:,:,i], projs[:,:,i]).astype(np.float32)
+    tifffile.imwrite(os.path.join(path_output_norm,"proj_"+ str(i).zfill(4) + ".tif"), dset_tv_norm[:,:,i].astype(np.float32))
+
+path_output_norm= "D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation_calibrated\\new_image\\300_proj\\sigma_1\\TV\\TV_reconstruction\\"
+if not os.path.exists(path_output_norm):
+    os.makedirs(path_output_norm)
+    
+for i in range(rec.shape[0]):   
+    im=  np.pad(dset_tv_norm[i,:,:], ((dset_d.shape[1] // 2, dset_d.shape[1] // 2), (0, 0)), mode='edge')
+    rec_i  = iradon(im, theta=theta, filter_name='ramp')
+    rec_i= rec_i[128:384,128:384]
+    rec_i[mask] = 0
+    tifffile.imwrite(os.path.join(path_output_norm,"slice_"+ str(i).zfill(4) + ".tif"), rec_i.astype(np.float32))  
 
 
 # SPARSE deconvolution
 
-path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\sparse_simul\\param_0.2\\"
-dset_sparse=np.zeros((dset_d.shape))
+dset_sparse_norm = np.zeros((dset_d.shape), dtype=np.float32)
+dset_sparse_no_norm = np.zeros((dset_d.shape), dtype=np.float32)
+
+path_output_norm="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation_calibrated\\new_image\\300_proj\\sigma_1\\sparse\\deconv_normalized\\"
+if not os.path.exists(path_output_norm):
+    os.makedirs(path_output_norm)
 
 for i in range(dset_d.shape[2]):
-    image=dset_d[:,:,i]   
-    Dw_sparse = lib_deconv.deconvSps(image, psf, 0.2, 400) 
-    dset_sparse[:,:,i]=Dw_sparse
- 
-rec=np.zeros( (dset_sparse.shape[0],dset_sparse.shape[1],dset_sparse.shape[1]) )
-for i in range(dset_sparse.shape[0]):    
-    rec_i  = iradon(dset_sparse[i,:,:], theta=theta, filter_name='ramp')
-    rec[i,:,:] = rec_i 
+    dset_sparse_no_norm[:,:,i] = lib_deconv.deconvSps(dset_d[:,:,i], psf, 0.2, 400) 
+    
+    # Normalize according to the corresponding projection after hilbert:
+    dset_sparse_norm[:,:,i] = lib_deconv.percentile_normalization(dset_sparse_no_norm[:,:,i], projs[:,:,i]).astype(np.float32)
+    tifffile.imwrite(os.path.join(path_output_norm,"proj_"+ str(i).zfill(4) + ".tif"), dset_sparse_norm[:,:,i].astype(np.float32))
 
-rec_i=rec[127,:,:]
-minimum= np.mean(rec_i[111:121,89:105])
-maximum= np.mean(rec_i[237:244,118:138])
-
-for i in range(rec.shape[0]):
-    rec[i,:,:]= (rec[i,:,:]-minimum)/(maximum-minimum)
-    rec[i,:,:][mask] = 0
-    tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", rec[i,:,:].astype(np.float32)) 
+path_output_norm= "D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation_calibrated\\new_image\\300_proj\\sigma_1\\sparse\\sparse_reconstruction\\"
+if not os.path.exists(path_output_norm):
+    os.makedirs(path_output_norm)
+    
+for i in range(rec.shape[0]):   
+    im=  np.pad(dset_sparse_norm[i,:,:], ((dset_d.shape[1] // 2, dset_d.shape[1] // 2), (0, 0)), mode='edge')
+    rec_i  = iradon(im, theta=theta, filter_name='ramp')
+    rec_i= rec_i[128:384,128:384]
+    rec_i[mask] = 0
+    tifffile.imwrite(os.path.join(path_output_norm,"slice_"+ str(i).zfill(4) + ".tif"), rec_i.astype(np.float32))  
 
 
 # WIENER deconvolution
 
-dset_wiener=np.zeros((dset_d.shape))
-path_output="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation\\wiener_simul\\param_0.0001\\"
+dset_wiener_no_norm = np.zeros((dset_d.shape),dtype=np.float32)
+dset_wiener_norm = np.zeros((dset_d.shape),dtype=np.float32)
+
+path_output_norm="D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation_calibrated\\new_image\\300_proj\\sigma_1\\wiener\\deconv_normalized\\"
+if not os.path.exists(path_output_norm):
+    os.makedirs(path_output_norm)
 
 for i in range(dset_d.shape[2]):
-    image=dset_d[:,:,i]   
-    Dw_wiener = lib_deconv.wiener_deconvolution_fb(image, psf, 0.0001) 
-    dset_wiener[:,:,i]=Dw_wiener
+
+    dset_wiener_no_norm[:,:,i] = lib_deconv.wiener_deconvolution_fb(dset_d[:,:,i], psf, 0.0001).astype(np.float32)
     
-rec=np.zeros( (dset_wiener.shape[0],dset_wiener.shape[1],dset_wiener.shape[1]) )
-for i in range(dset_wiener.shape[0]):    
-    rec_i  = iradon(dset_wiener[i,:,:], theta=theta, filter_name='ramp')
-    rec[i,:,:] = rec_i
+    # Normalize according to the corresponding projection after hilbert:
+    dset_wiener_norm[:,:,i] = lib_deconv.percentile_normalization(dset_wiener_no_norm[:,:,i], projs[:,:,i]).astype(np.float32)
+    tifffile.imwrite(os.path.join(path_output_norm,"proj_"+ str(i).zfill(4) + ".tif"), dset_wiener_norm[:,:,i].astype(np.float32))
 
-rec_i=rec[127,:,:]
-minimum= np.mean(rec_i[111:121,89:105])
-maximum= np.mean(rec_i[237:244,118:138])
-
-for i in range(rec.shape[0]):
-    rec[i,:,:]= (rec[i,:,:]-minimum)/(maximum-minimum)
-    rec[i,:,:][mask] = 0
-    tifffile.imwrite(path_output + "slice_"+ str(i).zfill(4) + ".tif", rec[i,:,:].astype(np.float32)) 
+path_output_norm= "D:\\FromPEPItoGiada\\deconvDPC\\phantom_simulation_calibrated\\new_image\\300_proj\\sigma_1\\wiener\\wiener_reconstruction\\"
+if not os.path.exists(path_output_norm):
+    os.makedirs(path_output_norm)
+    
+for i in range(rec.shape[0]):   
+    im=  np.pad(dset_wiener_norm[i,:,:], ((dset_d.shape[1] // 2, dset_d.shape[1] // 2), (0, 0)), mode='edge')
+    rec_i  = iradon(im, theta=theta, filter_name='ramp')
+    rec_i= rec_i[128:384,128:384]
+    rec_i[mask] = 0
+    tifffile.imwrite(os.path.join(path_output_norm,"slice_"+ str(i).zfill(4) + ".tif"), rec_i.astype(np.float32))   
