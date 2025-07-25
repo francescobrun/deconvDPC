@@ -74,7 +74,7 @@ for i in range(dset.shape[0]):
     sino_i = np.imag(hilbert(im, axis=0)) 
     sino_i = zoom(sino_i, (2,1), order=1) 
     sino_i = np.roll(sino_i, -1, axis=0)  
-    sino_i=np.pad(sino_i, ((0, 0), (dset.shape[1]/2,dset.shape[1]/2 )), mode='edge')
+    
     rec_i = iradon(sino_i, theta=theta, filter_name=None) / 2.0 
     rec_i = zoom(rec_i, (0.5,0.5), order=1) 
     rec_i = rec_i[128:384, 128:384]
