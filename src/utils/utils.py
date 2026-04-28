@@ -124,7 +124,9 @@ def save_results_and_generate_plot(
     save_as_tiff(rec_wiener_fbp, os.path.join(output_dir, "recon_wiener_fbp.tiff"))
     save_as_tiff(deconv_tv, os.path.join(output_dir, "deconvolved_tv.tiff"))
     save_as_tiff(rec_tv_fbp, os.path.join(output_dir, "recon_tv_fbp.tiff"))
-    save_as_tiff(deconv_sparse_result, os.path.join(output_dir, "deconvolved_sparse.tiff"))
+    save_as_tiff(
+        deconv_sparse_result, os.path.join(output_dir, "deconvolved_sparse.tiff")
+    )
     save_as_tiff(rec_sparse_fbp, os.path.join(output_dir, "recon_sparse_fbp.tiff"))
 
     # Generate overview plot
@@ -197,5 +199,3 @@ def save_results_and_generate_plot(
 
     except ImportError:
         pass
-
-

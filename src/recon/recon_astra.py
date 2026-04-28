@@ -36,10 +36,10 @@ def add_poisson_noise(projections, photon_count=None):
     I = photon_count * T
 
     # Simulate photon counting noise (Poisson distribution)
-    I_noise = np.random.poisson(I).astype(np.float32)  
+    I_noise = np.random.poisson(I).astype(np.float32)
 
     # Prevent zero counts which lead to infinite attenuation; set a floor at 1 photon
-    T_noise = np.maximum(I_noise, 1.0) / photon_count   
+    T_noise = np.maximum(I_noise, 1.0) / photon_count
 
     # Convert back to attenuation coefficient
     att_noise = -np.log(T_noise)
@@ -196,11 +196,11 @@ def backproject(
     nz, ny, nx = reconstruction.shape
     center_y, center_x = ny / 2.0, nx / 2.0
     max_radius = min(ny, nx) / 2.0 - 1.0  # Reduce radius by 1 pixel
-    
+
     yy, xx = np.ogrid[:ny, :nx]
-    dist_from_center = np.sqrt((yy - center_y)**2 + (xx - center_x)**2)
+    dist_from_center = np.sqrt((yy - center_y) ** 2 + (xx - center_x) ** 2)
     mask = dist_from_center <= max_radius
-    
+
     # Apply mask to all z-slices
     for z in range(nz):
         reconstruction[z][~mask] = 0
@@ -238,7 +238,7 @@ def filtered_backproject(
     # Transpose if input is in (angles, height, width) order
     if angles_first:
         projections = projections.transpose(1, 0, 2)
-    
+
     n = projections.shape[2]
     # Create frequency axis
     f = np.fft.fftfreq(n)

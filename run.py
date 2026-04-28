@@ -60,17 +60,19 @@ def main(
     # 1. Create phantom
     print(f"\n[1/6] Creating phantom ({size}^3)...")
     phantom, voxel_size = create_phantom(voxel_grid=size)
-    print(f"      Voxel size: {voxel_size:.4f} units, mu range: [{phantom.min():.4f}, {phantom.max():.4f}]")
-    
+    print(
+        f"      Voxel size: {voxel_size:.4f} units, mu range: [{phantom.min():.4f}, {phantom.max():.4f}]"
+    )
+
     # 2. Forward projection
     print(f"\n[2/6] Forward projection ({angles} angles)...")
     angles_rad = np.linspace(0, np.pi, angles, endpoint=False).astype(np.float32)
     orig_projections, geo = forward_project(phantom, angles_rad)
     orig_projections = orig_projections * voxel_size
 
-    # 3. Add Poisson noise 
+    # 3. Add Poisson noise
     print(f"\n[3/6] Adding Poisson noise (photons per pixel={photon_count})...")
-    projections = add_poisson_noise(orig_projections, photon_count) 
+    projections = add_poisson_noise(orig_projections, photon_count)
 
     # 4. Differential projections
     print(f"\n[4/6] Horizontal derivative...")
@@ -79,7 +81,9 @@ def main(
     # 5. Hilbert filter + backprojection
     print(f"\n[5/6] Reconstruction with Hilbert filter and backprojection...")
     filtered = apply_hilbert_filter_projections(diff_projections)
-    rec_hilbert_fbp = backproject(filtered, geo, cor=-0.5) / voxel_size  # Scale back to physical units
+    rec_hilbert_fbp = (
+        backproject(filtered, geo, cor=-0.5) / voxel_size
+    )  # Scale back to physical units
 
     # 6. Deconvolution methods + standard FBP with ramp filter
     print(f"\n[6/6] Deconvolution methods + Filtered Back Projection...")
@@ -91,25 +95,37 @@ def main(
         for a in tqdm(range(diff_projections.shape[1]), desc="      Wiener deconv")
     )
     deconv_wiener = np.array(wiener_results)
-    rec_wiener_fbp = filtered_backproject(deconv_wiener, geo, cor=0.0, angles_first=True) / voxel_size
+    rec_wiener_fbp = (
+        filtered_backproject(deconv_wiener, geo, cor=0.0, angles_first=True)
+        / voxel_size
+    )
 
     # TV deconvolution
-    tv_reg_param = tv_reg  
+    tv_reg_param = tv_reg
     tv_results = Parallel(n_jobs=-1)(
-        delayed(tv_deconvolution)(diff_projections[:, a, :], regul_param=tv_reg_param, max_iter=100)
+        delayed(tv_deconvolution)(
+            diff_projections[:, a, :], regul_param=tv_reg_param, max_iter=100
+        )
         for a in tqdm(range(diff_projections.shape[1]), desc="      TV deconv")
     )
     deconv_tv = np.array(tv_results)
-    rec_tv_fbp = filtered_backproject(deconv_tv, geo, cor=0.0, angles_first=True) / voxel_size
+    rec_tv_fbp = (
+        filtered_backproject(deconv_tv, geo, cor=0.0, angles_first=True) / voxel_size
+    )
 
     # Sparse deconvolution
     sparse_reg_param = sparse_reg
     sparse_results = Parallel(n_jobs=-1)(
-        delayed(deconv_sparse)(diff_projections[:, a, :], we=sparse_reg_param, max_iter=100)
+        delayed(deconv_sparse)(
+            diff_projections[:, a, :], we=sparse_reg_param, max_iter=100
+        )
         for a in tqdm(range(diff_projections.shape[1]), desc="      Sparse deconv")
     )
     deconv_sparse_result = np.array(sparse_results)
-    rec_sparse_fbp = filtered_backproject(deconv_sparse_result, geo, cor=0.0, angles_first=True) / voxel_size     
+    rec_sparse_fbp = (
+        filtered_backproject(deconv_sparse_result, geo, cor=0.0, angles_first=True)
+        / voxel_size
+    )
 
     # Save results and generate plot
     save_results_and_generate_plot(
@@ -136,11 +152,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="3D Shepp-Logan phantom DPC simulation and reconstruction with ASTRA"
     )
-    parser.add_argument(
-        "config",
-        type=str,
-        help="Path to YAML configuration file"
-    )
+    parser.add_argument("config", type=str, help="Path to YAML configuration file")
     args = parser.parse_args()
 
     # Load configuration from YAML file
@@ -165,5 +177,5 @@ if __name__ == "__main__":
         plot_slice=plot_slice,
         tv_reg=tv_reg,
         sparse_reg=sparse_reg,
-        wiener_v0=wiener_v0
+        wiener_v0=wiener_v0,
     )

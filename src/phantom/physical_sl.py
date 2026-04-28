@@ -32,7 +32,7 @@ def create_phantom(voxel_grid=256, physical_FOV_cm=30.0):
     phantom : np.ndarray
         Normalized 3D Shepp-Logan phantom (range 0-1 representing tissue contrast).
         Shape: (voxel_grid, voxel_grid, voxel_grid)
-        Data type: float32        
+        Data type: float32
 
     """
     # Generate the 3D Shepp-Logan phantom using the Yu-Ye-Wang variant

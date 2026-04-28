@@ -270,7 +270,7 @@ def _tv_denoise(
 
 
 def tv_deconvolution(
-    y: np.ndarray,    
+    y: np.ndarray,
     regul_param: float,
     max_iter: int = 400,
     psf: np.ndarray = np.array([[0.0, 0.0, 0.0], [0.0, -1.0, 1.0], [0.0, 0.0, 0.0]]),
@@ -310,9 +310,7 @@ def tv_deconvolution(
 
         # Wiener-filtered update in Fourier domain
         denom = np.abs(Fk) ** 2 + regul_param
-        x = np.real(
-            np.fft.ifft2((np.conj(Fk) * Fy + regul_param * Fz) / denom)
-        )
+        x = np.real(np.fft.ifft2((np.conj(Fk) * Fy + regul_param * Fz) / denom))
         x = x[:m, :n]
 
         # TV denoising step
