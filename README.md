@@ -28,12 +28,12 @@ python run.py config.yaml
 
 ### Configuration
 
-Modify the following [config.yaml](config.yaml) to tune the available parameters.
+Modify the following [config.yaml](config.yaml) to tune the available parameters. An example:
 
 ```yaml
 phantom_params:
-  voxel_grid: 256
-  FOV_cm: 30
+  voxel_grid: 128
+  angles: 180
 
 noise:
   photon_count: 1e5
@@ -43,9 +43,9 @@ deconv_params:
   sparse_we: 0.01
   tv_lambda: 0.1
 
-paths:  
-  output_dir: ./output
-  add_plot: True  
+output:  
+  path: ./output
+  plot_slice: 48
 ```
 
 ### Configuration
