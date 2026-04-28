@@ -195,6 +195,7 @@ def save_results_and_generate_plot(
         plt.tight_layout()
         plt.savefig(os.path.join(output_dir, "output_plot.png"), dpi=150)
         print("      Saved output_plot.png")
+        plt.show()
         plt.close(fig)
 
     except ImportError:
