@@ -1,0 +1,15 @@
+phantom_params:
+  voxel_grid: 128
+  angles: 180
+
+noise:
+  photon_count: 1e5
+
+deconv_params:
+  wiener_v0: 1e-5
+  sparse_we: 0.01
+  tv_lambda: 0.1
+
+output:  
+  path: ./output
+  plot_slice: 48

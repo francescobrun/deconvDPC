@@ -1,0 +1,6 @@
+# Core dependencies (pinned versions for reproducibility)
+numpy
+scipy
+tifffile
+PyYAML
+joblib
