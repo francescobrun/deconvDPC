@@ -70,9 +70,7 @@ def apply_horizontal_derivative(projections: np.ndarray) -> np.ndarray:
     return diff
 
 
-def apply_hilbert_filter_projections(
-    projections: np.ndarray, invert_sign: bool = True
-) -> np.ndarray:
+def hilbert_filter(projections: np.ndarray, invert_sign: bool = True) -> np.ndarray:
     """Apply the Hilbert-integration filter along detector columns.
 
     For DPC data that is the spatial derivative of the attenuation projection,
@@ -151,7 +149,7 @@ def forward_project(
     return projections, geometry_info
 
 
-def backproject(
+def BP(
     projections: np.ndarray,
     geometry_info: dict,
     cor: float = 0.0,
@@ -213,7 +211,7 @@ def backproject(
     return reconstruction
 
 
-def filtered_backproject(
+def FBP(
     projections: np.ndarray,
     geometry_info: dict,
     cor: float = 0.0,
@@ -251,4 +249,4 @@ def filtered_backproject(
     filtered_projections = np.fft.ifft(proj_fft, axis=2).real
 
     # Use existing backprojection which already includes correct normalization
-    return backproject(filtered_projections, geometry_info, cor=cor)
+    return BP(filtered_projections, geometry_info, cor=cor)

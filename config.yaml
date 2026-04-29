@@ -13,3 +13,7 @@ deconv_params:
 output:  
   path: ./output
   plot_slice: 48
+
+plot_params:
+  profile_line: 22
+  profile_length: 64

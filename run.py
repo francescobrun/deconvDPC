@@ -9,6 +9,7 @@ import argparse
 import os
 import sys
 import yaml
+import yaml
 
 import numpy as np
 from joblib import Parallel, delayed
@@ -25,9 +26,9 @@ from phantom.physical_sl import create_phantom
 from recon.recon_astra import (
     add_poisson_noise,
     apply_horizontal_derivative,
-    apply_hilbert_filter_projections,
-    backproject,
-    filtered_backproject,
+    hilbert_filter,
+    BP,
+    FBP,
     forward_project,
 )
 
@@ -41,6 +42,8 @@ def main(
     tv_reg: float = 1e-2,
     sparse_reg: float = 1e-3,
     wiener_v0: float = 1e-5,
+    profile_line: int = 20,
+    profile_length: int = 64,
 ) -> None:
     """Run the full DPC simulation and reconstruction pipeline.
 
@@ -54,6 +57,9 @@ def main(
             uses the middle slice.
         tv_reg: TV deconvolution regularization parameter.
         sparse_reg: Sparse deconvolution regularization parameter.
+        wiener_v0: Wiener deconvolution noise variance.
+        profile_line: Row index for line profile extraction.
+        profile_length: Length of centered segment for line profile.
     """
     os.makedirs(output_dir, exist_ok=True)
 
@@ -61,7 +67,7 @@ def main(
     print(f"\n[1/6] Creating phantom ({size}^3)...")
     phantom, voxel_size = create_phantom(voxel_grid=size)
     print(
-        f"      Voxel size: {voxel_size:.4f} units, mu range: [{phantom.min():.4f}, {phantom.max():.4f}]"
+        f"      Voxel size: {voxel_size:.4f} cm, mu range: [{phantom.min():.4f}, {phantom.max():.4f}] cm^-1"
     )
 
     # 2. Forward projection
@@ -76,13 +82,13 @@ def main(
 
     # 4. Differential projections
     print(f"\n[4/6] Horizontal derivative...")
-    diff_projections = apply_horizontal_derivative(projections)
+    diff_projs = apply_horizontal_derivative(projections)
 
     # 5. Hilbert filter + backprojection
     print(f"\n[5/6] Reconstruction with Hilbert filter and backprojection...")
-    filtered = apply_hilbert_filter_projections(diff_projections)
-    rec_hilbert_fbp = (
-        backproject(filtered, geo, cor=-0.5) / voxel_size
+    filtered = hilbert_filter(diff_projs)
+    rec_hilbert_bp = (
+        BP(filtered, geo, cor=-0.5) / voxel_size
     )  # Scale back to physical units
 
     # 6. Deconvolution methods + standard FBP with ramp filter
@@ -90,41 +96,35 @@ def main(
 
     # Wiener deconvolution
     noise_var = wiener_v0
-    wiener_results = Parallel(n_jobs=-1)(
-        delayed(wiener_deconvolution)(diff_projections[:, a, :], noise_var=noise_var)
-        for a in tqdm(range(diff_projections.shape[1]), desc="      Wiener deconv")
+    wiener_results = Parallel(n_jobs=-2)(
+        delayed(wiener_deconvolution)(diff_projs[:, a, :], noise_var=noise_var)
+        for a in tqdm(range(diff_projs.shape[1]), desc="      Wiener deconv")
     )
     deconv_wiener = np.array(wiener_results)
-    rec_wiener_fbp = (
-        filtered_backproject(deconv_wiener, geo, cor=0.0, angles_first=True)
-        / voxel_size
-    )
+    rec_wiener_fbp = FBP(deconv_wiener, geo, cor=0.0, angles_first=True) / voxel_size
 
     # TV deconvolution
     tv_reg_param = tv_reg
-    tv_results = Parallel(n_jobs=-1)(
+    tv_results = Parallel(n_jobs=-2)(
         delayed(tv_deconvolution)(
-            diff_projections[:, a, :], regul_param=tv_reg_param, max_iter=100
+            diff_projs[:, a, :], regul_param=tv_reg_param, max_iter=100
         )
-        for a in tqdm(range(diff_projections.shape[1]), desc="      TV deconv")
+        for a in tqdm(range(diff_projs.shape[1]), desc="      TV deconv")
     )
     deconv_tv = np.array(tv_results)
-    rec_tv_fbp = (
-        filtered_backproject(deconv_tv, geo, cor=0.0, angles_first=True) / voxel_size
-    )
+    rec_tv_fbp = FBP(deconv_tv, geo, cor=0.0, angles_first=True) / voxel_size
 
     # Sparse deconvolution
     sparse_reg_param = sparse_reg
-    sparse_results = Parallel(n_jobs=-1)(
+    sparse_results = Parallel(n_jobs=-2)(
         delayed(deconv_sparse)(
-            diff_projections[:, a, :], we=sparse_reg_param, max_iter=100
+            diff_projs[:, a, :], we=sparse_reg_param, max_iter=100
         )
-        for a in tqdm(range(diff_projections.shape[1]), desc="      Sparse deconv")
+        for a in tqdm(range(diff_projs.shape[1]), desc="      Sparse deconv")
     )
     deconv_sparse_result = np.array(sparse_results)
     rec_sparse_fbp = (
-        filtered_backproject(deconv_sparse_result, geo, cor=0.0, angles_first=True)
-        / voxel_size
+        FBP(deconv_sparse_result, geo, cor=0.0, angles_first=True) / voxel_size
     )
 
     # Save results and generate plot
@@ -132,8 +132,8 @@ def main(
         phantom=phantom,
         projections=projections,
         orig_projections=orig_projections,
-        diff_projections=diff_projections,
-        rec_hilbert_fbp=rec_hilbert_fbp,
+        diff_projections=diff_projs,
+        rec_hilbert_fbp=rec_hilbert_bp,
         deconv_wiener=deconv_wiener,
         rec_wiener_fbp=rec_wiener_fbp,
         deconv_tv=deconv_tv,
@@ -144,38 +144,37 @@ def main(
         angles=angles,
         photon_count=photon_count,
         plot_slice=plot_slice,
+        profile_line=profile_line,
+        profile_length=profile_length,
     )
     print("\n[Done]")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="3D Shepp-Logan phantom DPC simulation and reconstruction with ASTRA"
+        description="3D Shepp-Logan phantom DPC simulation and reconstruction"
     )
     parser.add_argument("config", type=str, help="Path to YAML configuration file")
     args = parser.parse_args()
 
-    # Load configuration from YAML file
-    with open(args.config, "r") as f:
+    with open(args.config, 'r') as f:
         config = yaml.safe_load(f)
 
-    # Extract parameters from config and ensure correct types
-    size = int(config["phantom_params"]["voxel_grid"])
-    angles = int(config["phantom_params"]["angles"])
-    photon_count = float(config["noise"]["photon_count"])
-    output_dir = str(config["output"]["path"])
-    plot_slice = int(config["output"]["plot_slice"])
-    tv_reg = float(config["deconv_params"]["tv_lambda"])
-    sparse_reg = float(config["deconv_params"]["sparse_we"])
-    wiener_v0 = float(config["deconv_params"]["wiener_v0"])
+    phantom_params = config['phantom_params']
+    noise_params = config['noise']
+    deconv_params = config['deconv_params']
+    output_params = config['output']
+    plot_params = config.get('plot_params', {})
 
     main(
-        size=size,
-        angles=angles,
-        photon_count=photon_count,
-        output_dir=output_dir,
-        plot_slice=plot_slice,
-        tv_reg=tv_reg,
-        sparse_reg=sparse_reg,
-        wiener_v0=wiener_v0,
+        size=phantom_params['voxel_grid'],
+        angles=phantom_params['angles'],
+        photon_count=float(noise_params['photon_count']),
+        output_dir=output_params['path'],
+        plot_slice=output_params.get('plot_slice'),
+        tv_reg=float(deconv_params['tv_lambda']),
+        sparse_reg=float(deconv_params['sparse_we']),
+        wiener_v0=float(deconv_params['wiener_v0']),
+        profile_line=plot_params.get('profile_line', 20),
+        profile_length=plot_params.get('profile_length', 64),
     )

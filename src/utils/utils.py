@@ -69,7 +69,6 @@ def perc_norm(
 
     return source_scaled
 
-
 def save_results_and_generate_plot(
     phantom: np.ndarray,
     projections: np.ndarray,
@@ -86,35 +85,13 @@ def save_results_and_generate_plot(
     angles: int,
     photon_count: Optional[float] = None,
     plot_slice: Optional[int] = None,
+    profile_line: int = 20,
+    profile_length: int = 64,
 ) -> None:
-    """
-    Save all volume results as TIFF files and generate the overview comparison plot.
 
-    This function encapsulates all output saving logic:
-    - Saves all intermediate and final volumes as TIFF files
-    - Generates the comparative plot with PSNR/NRMSE metrics
-    - Handles matplotlib import safely
-
-    Args:
-        phantom: Ground truth 3D phantom volume
-        projections: Noisy projection data
-        orig_projections: Original noise-free projection data
-        diff_projections: Horizontal derivative projections
-        rec_hilbert_fbp: Hilbert + backprojection reconstruction
-        deconv_wiener: Wiener deconvolved projections
-        rec_wiener_fbp: Wiener deconvolution reconstruction
-        deconv_tv: TV deconvolved projections
-        rec_tv_fbp: TV deconvolution reconstruction
-        deconv_sparse_result: Sparse deconvolved projections
-        rec_sparse_fbp: Sparse deconvolution reconstruction
-        output_dir: Directory where outputs will be saved
-        angles: Number of projection angles used
-        photon_count: Photon count for Poisson noise (if used)
-        plot_slice: Slice index to use for the plot (defaults to middle slice)
-    """
     print(f"\nSaving results to '{output_dir}'...")
 
-    # Save all volumes as TIFF
+    # Save TIFFs (unchanged)
     save_as_tiff(phantom, os.path.join(output_dir, "phantom.tiff"))
     save_as_tiff(projections, os.path.join(output_dir, "projections.tiff"))
     save_as_tiff(orig_projections, os.path.join(output_dir, "orig_projections.tiff"))
@@ -124,77 +101,174 @@ def save_results_and_generate_plot(
     save_as_tiff(rec_wiener_fbp, os.path.join(output_dir, "recon_wiener_fbp.tiff"))
     save_as_tiff(deconv_tv, os.path.join(output_dir, "deconvolved_tv.tiff"))
     save_as_tiff(rec_tv_fbp, os.path.join(output_dir, "recon_tv_fbp.tiff"))
-    save_as_tiff(
-        deconv_sparse_result, os.path.join(output_dir, "deconvolved_sparse.tiff")
-    )
+    save_as_tiff(deconv_sparse_result, os.path.join(output_dir, "deconvolved_sparse.tiff"))
     save_as_tiff(rec_sparse_fbp, os.path.join(output_dir, "recon_sparse_fbp.tiff"))
 
-    # Generate overview plot
     try:
         import matplotlib.pyplot as plt
+        import matplotlib.widgets as mwidgets
 
         mid_z = phantom.shape[0] // 2 if plot_slice is None else plot_slice
         mid_a = angles // 2
 
-        phantom_slice = phantom[mid_z]
-
-        # Use Hilbert reconstruction range for consistent visualization
         hilbert_slice = rec_hilbert_fbp[mid_z]
         hilbert_vmin, hilbert_vmax = hilbert_slice.min(), hilbert_slice.max()
 
-        fig, axes = plt.subplots(2, 3, figsize=(15, 10))
-        plot_configs = [
-            (axes[0, 0], phantom[mid_z], f"Phantom (slice {mid_z})", None),
-            (
-                axes[0, 1],
-                diff_projections[:, mid_a, :],
-                f"Differential projection (angle {mid_a})",
-                None,
-            ),
-            (
-                axes[0, 2],
-                rec_hilbert_fbp[mid_z],
-                f"Hilbert + BP",
-                (hilbert_vmin, hilbert_vmax),
-            ),
-            (
-                axes[1, 0],
-                rec_wiener_fbp[mid_z],
-                f"Wiener + FBP",
-                (hilbert_vmin, hilbert_vmax),
-            ),
-            (
-                axes[1, 1],
-                rec_tv_fbp[mid_z],
-                f"TV Deconv + FBP",
-                (hilbert_vmin, hilbert_vmax),
-            ),
-            (
-                axes[1, 2],
-                rec_sparse_fbp[mid_z],
-                f"Sparse + FBP",
-                (hilbert_vmin, hilbert_vmax),
-            ),
-        ]
+        fig, axes = plt.subplots(2, 4, figsize=(18, 9))
 
-        for ax, arr, title, vrange in plot_configs:
+        # Projection
+        ax_proj = axes[0, 1]
+        im_proj = ax_proj.imshow(diff_projections[:, mid_a, :], cmap='gray')
+        ax_proj.set_title(f"Differential projection (angle {mid_a})")
+        plt.colorbar(im_proj, ax=ax_proj, fraction=0.046, pad=0.04)
+
+        volumes = {
+            'phantom': (phantom, None, "Phantom"),
+            'hilbert': (rec_hilbert_fbp, (hilbert_vmin, hilbert_vmax), "Hilbert + BP"),
+            'wiener': (rec_wiener_fbp, (hilbert_vmin, hilbert_vmax), "Wiener + FBP"),
+            'tv': (rec_tv_fbp, (hilbert_vmin, hilbert_vmax), "TV Deconv + FBP"),
+            'sparse': (rec_sparse_fbp, (hilbert_vmin, hilbert_vmax), "Sparse + FBP"),
+        }
+
+        positions = [(0, 0), (0, 2), (1, 0), (1, 1), (1, 2)]
+        ims = {}
+        phantom_ax = None
+
+        current_slice = [mid_z]
+        current_line = [profile_line]
+        current_line_collection = [None]
+
+        for i, (name, (vol, vrange, base_title)) in enumerate(volumes.items()):
+            ax = axes[positions[i][0], positions[i][1]]
+
             kwargs = {"cmap": "gray"}
             if vrange is not None:
                 kwargs["vmin"] = vrange[0]
                 kwargs["vmax"] = vrange[1]
-            im = ax.imshow(arr, **kwargs)
-            ax.set_title(title)
+
+            im = ax.imshow(vol[mid_z], **kwargs)
+            ims[name] = (im, base_title)
+
+            ax.set_title(f"{base_title} (slice {mid_z})")
             plt.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
 
-        fig.suptitle(
-            f"3D Shepp-Logan DPC — slice {mid_z}, {angles} angles"
-            + (f", photons={photon_count}" if photon_count else ", noise-free"),
-            fontsize=12,
+            if name == 'phantom':
+                phantom_ax = ax
+
+        def compute_profile(vol, slice_idx):
+            slice_data = vol[slice_idx]
+            line = slice_data[current_line[0], :]
+            center = len(line) // 2
+            start = max(0, center - profile_length // 2)
+            end = min(len(line), center + profile_length // 2)
+            return line[start:end], start, end
+
+        def draw_line(ax, vol, slice_idx):
+            for line in ax.lines[:]:
+                line.remove()
+
+            if current_line_collection[0] is not None:
+                current_line_collection[0].remove()
+
+            slice_data = vol[slice_idx]
+            line_data = slice_data[current_line[0], :]
+
+            center = len(line_data) // 2
+            start = max(0, center - profile_length // 2)
+            end = min(len(line_data), center + profile_length // 2)
+
+            line_coll = ax.hlines(
+                current_line[0],
+                start,
+                end,
+                colors='red',
+                linewidth=2
+            )
+            current_line_collection[0] = line_coll
+
+        draw_line(phantom_ax, phantom, mid_z)
+
+        phantom_ax.text(0.5, -0.15, "Click to change the line position",
+                        transform=phantom_ax.transAxes, ha='center',
+                        fontsize=10, style='italic', color='gray')
+
+        ax_profile = axes[0, 3]
+        ax_profile.set_title("Line Profiles")
+
+        colors = {
+            'phantom': 'blue',
+            'hilbert': 'green',
+            'wiener': 'red',
+            'tv': 'cyan',
+            'sparse': 'magenta'
+        }
+
+        profiles = {}
+
+        for name, (vol, _, _) in volumes.items():
+            prof, start, end = compute_profile(vol, mid_z)
+            x = np.arange(len(prof))
+            line_plot, = ax_profile.plot(x, prof, color=colors[name], label=name)
+            profiles[name] = line_plot
+
+        ax_profile.legend()
+        ax_profile.set_xlabel("Position")
+        ax_profile.set_ylabel("Intensity")
+
+        # Slider axes (position will be adjusted AFTER tight_layout)
+        ax_slider = axes[1, 3]
+
+        slider = mwidgets.Slider(
+            ax_slider,
+            'Slice',
+            0,
+            phantom.shape[0] - 1,
+            valinit=mid_z,
+            valstep=1,
+            orientation='horizontal'
         )
 
+        def update_all():
+            slice_idx = current_slice[0]
+
+            for name, (im, base_title) in ims.items():
+                vol = volumes[name][0]
+                im.set_data(vol[slice_idx])
+                im.axes.set_title(f"{base_title} (slice {slice_idx})")
+                profile, _, _ = compute_profile(vol, slice_idx)
+                profiles[name].set_ydata(profile)
+
+            draw_line(phantom_ax, phantom, slice_idx)
+            fig.canvas.draw_idle()
+
+        def on_slider(val):
+            current_slice[0] = int(val)
+            update_all()
+
+        slider.on_changed(on_slider)
+
+        def on_click(event):
+            if event.inaxes != phantom_ax or event.ydata is None:
+                return
+            current_line[0] = int(event.ydata)
+            update_all()
+
+        fig.canvas.mpl_connect('button_press_event', on_click)
+
+        update_all()
+
         plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, "output_plot.png"), dpi=150)
-        print("      Saved output_plot.png")
+
+        # ✅ Applied AFTER tight_layout() so it isn't overridden
+        pos = ax_slider.get_position()
+        new_height = pos.height * 0.25
+        ax_slider.set_position([
+            pos.x0,
+            pos.y0 + (pos.height - new_height) / 2,
+            pos.width,
+            new_height
+        ])
+
         plt.show()
         plt.close(fig)
 
